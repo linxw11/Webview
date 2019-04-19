@@ -22,7 +22,6 @@ import android.support.design.widget.AppBarLayout;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.Snackbar;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.widget.NestedScrollView;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.AppCompatImageButton;
@@ -50,6 +49,7 @@ import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import com.example.linxw.webview.MyWebView;
 import com.example.linxw.webview.R;
 import com.example.linxw.webview.vassonic.HostSonicRuntime;
 import com.example.linxw.webview.vassonic.SonicJavaScriptInterface;
@@ -387,8 +387,8 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
     protected AppCompatImageButton more;
 
     protected SwipeRefreshLayout swipeRefreshLayout;
-    protected NestedScrollView nestedScrollView;
-    protected WebView webView;
+    // protected NestedScrollView nestedScrollView;
+    protected MyWebView webView;
 
     protected View gradient;
     protected View divider;
@@ -434,7 +434,7 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
         more.setOnClickListener(this);
 
         swipeRefreshLayout = (SwipeRefreshLayout) findViewById(R.id.swipeRefreshLayout);
-        nestedScrollView = findViewById(R.id.nestedScrollView);
+        // nestedScrollView = findViewById(R.id.nestedScrollView);
 
         gradient = findViewById(R.id.gradient);
         divider = findViewById(R.id.divider);
@@ -456,7 +456,7 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
         menuOpenWithTv = (TextView) findViewById(R.id.menuOpenWithTv);
 
         webLayout = (FrameLayout) findViewById(R.id.webLayout);
-        webView = new WebView(this);
+        webView = new MyWebView(this);
         webLayout.addView(webView);
     }
 
@@ -599,9 +599,20 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
             webView.setWebChromeClient(new MainWebViewActivity.MyWebChromeClient());
             webView.setWebViewClient(new MainWebViewActivity.MyWebViewClient());
             webView.setDownloadListener(downloadListener);
+            webView.setOnScrollListener(new MyWebView.IScrollListener() {
+                @Override
+                public void onScrollChanged(int scrollY) {
+                    if (scrollY == 0) {
+                        //开启下拉刷新
+                        swipeRefreshLayout.setEnabled(true);
+                    } else {
+                        //关闭下拉刷新
+                        swipeRefreshLayout.setEnabled(false);
+                    }
+                }
+            });
 
             WebSettings settings = webView.getSettings();
-
             if (webViewSupportZoom != null)
                 settings.setSupportZoom(webViewSupportZoom);
             if (webViewMediaPlaybackRequiresUserGesture != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1)
@@ -698,7 +709,16 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
             // note:if api level lower than 17(android 4.2), addJavascriptInterface has security
             // issue, please use x5 or see https://developer.android.com/reference/android/webkit/
             // WebView.html#addJavascriptInterface(java.lang.Object, java.lang.String)
-            webView.removeJavascriptInterface("searchBoxJavaBridge_");
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB && Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1 ) {
+                    webView.removeJavascriptInterface("searchBoxJavaBridge_");
+                    webView.removeJavascriptInterface("accessibility");
+                    webView.removeJavascriptInterface("accessibilityTraversal");
+                }
+            } catch (Throwable tr) {
+                tr.printStackTrace();
+            }
+
             intent.putExtra(SonicJavaScriptInterface.PARAM_LOAD_URL_TIME, System.currentTimeMillis());
             webView.addJavascriptInterface(new SonicJavaScriptInterface(sonicSessionClient, intent), "sonic");
 
@@ -894,8 +914,10 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        initializeOptions();
+        getWindow().setFlags(WindowManager.LayoutParams. FLAG_FULLSCREEN ,
+                WindowManager.LayoutParams. FLAG_FULLSCREEN);
 
+        initializeOptions();
         setContentView(R.layout.activity_main_webview);
 
         // step 1: Initialize sonic engine if necessary, or maybe u can do this when application created
@@ -1075,14 +1097,22 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
                         }
                     });
                 }
-
                 if (!swipeRefreshLayout.isRefreshing() && progress != 100) {
-                    swipeRefreshLayout.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            swipeRefreshLayout.setRefreshing(true);
-                        }
-                    });
+                    if(progress>75) {
+                        swipeRefreshLayout.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                swipeRefreshLayout.setRefreshing(false);
+                            }
+                        });
+                    } else {
+                        swipeRefreshLayout.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                swipeRefreshLayout.setRefreshing(true);
+                            }
+                        });
+                    }
                 }
             }
 
@@ -1107,7 +1137,7 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
             BroadCastManager.onPageStarted(MainWebViewActivity.this, key, url);
-            nestedScrollView.scrollTo(0, 0);
+
             if (!url.contains("docs.google.com") && url.endsWith(".pdf")) {
                 webView.loadUrl("http://docs.google.com/gview?embedded=true&url=" + url);
             }
@@ -1120,7 +1150,6 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
         public void onPageFinished(WebView view, String url) {
 
             BroadCastManager.onPageFinished(MainWebViewActivity.this, key, url);
-            nestedScrollView.scrollTo(0, 0);
 
             super.onPageFinished(view, url);
             if (sonicSession != null) {
@@ -1141,8 +1170,10 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
                 forward.setVisibility(View.GONE);
             }
 
-            if (injectJavaScript != null)
+            if (injectJavaScript != null) {
                 webView.loadUrl(injectJavaScript);
+            }
+
         }
 
         @Override
