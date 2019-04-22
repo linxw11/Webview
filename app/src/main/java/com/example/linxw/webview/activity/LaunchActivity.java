@@ -30,8 +30,8 @@ public class LaunchActivity extends Activity {
                         .webViewSaveFormData(true)
                         .webViewNeedInitialFocus(true)
                         .webViewLoadWithOverviewMode(true)
-                        //.show("https://m.baidu.com");
-                        .show("https://www.jianshu.com");
+                        .show("https://m.baidu.com");
+                        //.show("https://www.jianshu.com");
                 LaunchActivity.this.finish();
             }
         }, time);

@@ -22,12 +22,14 @@ import android.support.design.widget.AppBarLayout;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.Snackbar;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.AppCompatImageButton;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.util.TypedValue;
+import android.view.DragEvent;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
@@ -49,12 +51,15 @@ import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import com.example.linxw.webview.MyWebView;
 import com.example.linxw.webview.R;
 import com.example.linxw.webview.vassonic.HostSonicRuntime;
 import com.example.linxw.webview.vassonic.SonicJavaScriptInterface;
 import com.example.linxw.webview.vassonic.SonicSessionClientImpl;
+import com.example.linxw.webview.view.MyWebView;
 import com.nineoldandroids.view.ViewHelper;
+import com.scwang.smartrefresh.layout.SmartRefreshLayout;
+import com.scwang.smartrefresh.layout.api.RefreshLayout;
+import com.scwang.smartrefresh.layout.listener.OnRefreshListener;
 import com.tencent.sonic.sdk.SonicConfig;
 import com.tencent.sonic.sdk.SonicEngine;
 import com.tencent.sonic.sdk.SonicSession;
@@ -386,7 +391,7 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
     protected AppCompatImageButton forward;
     protected AppCompatImageButton more;
 
-    protected SwipeRefreshLayout swipeRefreshLayout;
+    protected SmartRefreshLayout swipeRefreshLayout;
     // protected NestedScrollView nestedScrollView;
     protected MyWebView webView;
 
@@ -433,7 +438,7 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
         forward.setOnClickListener(this);
         more.setOnClickListener(this);
 
-        swipeRefreshLayout = (SwipeRefreshLayout) findViewById(R.id.swipeRefreshLayout);
+        swipeRefreshLayout = (SmartRefreshLayout ) findViewById(R.id.swipeRefreshLayout);
         // nestedScrollView = findViewById(R.id.nestedScrollView);
 
         gradient = findViewById(R.id.gradient);
@@ -748,22 +753,23 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
 
         { // SwipeRefreshLayout
             swipeRefreshLayout.setEnabled(showSwipeRefreshLayout);
+            //swipeRefreshLayout.setDistanceToTriggerSync(500);
             if (showSwipeRefreshLayout) {
-                swipeRefreshLayout.post(new Runnable() {
+                /*swipeRefreshLayout.post(new Runnable() {
                     @Override
                     public void run() {
                         swipeRefreshLayout.setRefreshing(true);
                     }
-                });
+                });*/
             }
 
-            if (swipeRefreshColors == null)
+            /*if (swipeRefreshColors == null)
                 swipeRefreshLayout.setColorSchemeColors(swipeRefreshColor);
-            else swipeRefreshLayout.setColorSchemeColors(swipeRefreshColors);
+            else swipeRefreshLayout.setColorSchemeColors(swipeRefreshColors);*/
 
-            swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            swipeRefreshLayout.setOnRefreshListener(new OnRefreshListener() {
                 @Override
-                public void onRefresh() {
+                public void onRefresh(RefreshLayout refreshLayout) {
                     webView.reload();
                 }
             });
@@ -1088,33 +1094,26 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
         public void onProgressChanged(WebView view, int progress) {
             BroadCastManager.onProgressChanged(MainWebViewActivity.this, key, progress);
 
-            if (showSwipeRefreshLayout) {
-                if (swipeRefreshLayout.isRefreshing() && progress == 100) {
+            /*if (showSwipeRefreshLayout) {
+                if (progress == 100) {
                     swipeRefreshLayout.post(new Runnable() {
                         @Override
                         public void run() {
-                            swipeRefreshLayout.setRefreshing(false);
+                            swipeRefreshLayout.finishRefresh();
                         }
                     });
                 }
-                if (!swipeRefreshLayout.isRefreshing() && progress != 100) {
-                    if(progress>75) {
+                if (progress != 100) {
+                    if(progress>80) {
                         swipeRefreshLayout.post(new Runnable() {
                             @Override
                             public void run() {
-                                swipeRefreshLayout.setRefreshing(false);
-                            }
-                        });
-                    } else {
-                        swipeRefreshLayout.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                swipeRefreshLayout.setRefreshing(true);
+                                swipeRefreshLayout.finishRefresh();
                             }
                         });
                     }
                 }
-            }
+            }*/
 
             if (progress == 100)
                 progress = 0;
@@ -1150,8 +1149,8 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
         public void onPageFinished(WebView view, String url) {
 
             BroadCastManager.onPageFinished(MainWebViewActivity.this, key, url);
-
-            super.onPageFinished(view, url);
+            swipeRefreshLayout.finishRefresh();
+            // super.onPageFinished(view, url);
             if (sonicSession != null) {
                 sonicSession.getSessionClient().pageFinish(url);
             }
@@ -1255,6 +1254,11 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
     }
 
     @Override
+    public boolean onTouchEvent(MotionEvent event){
+        return super.onTouchEvent(event);
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         if (null != sonicSession) {
@@ -1310,5 +1314,16 @@ public class MainWebViewActivity extends AppCompatActivity implements AppBarLayo
         if (!SonicEngine.isGetInstanceAllowed()) {
             SonicEngine.createInstance(new HostSonicRuntime(getApplication()), new SonicConfig.Builder().build());
         }
+    }
+
+    //@TargetApi(23)
+    private void scrollChange() {
+        swipeRefreshLayout.setOnDragListener(new View.OnDragListener() {
+            @Override
+            public boolean onDrag(View v, DragEvent event) {
+                Log.e("drag ", event.getY()+""+event.getAction());
+                return false;
+            }
+        });
     }
 }
